@@ -4,8 +4,8 @@ import time
 from loguru import logger
 
 from core.config import Config
-from core import TushareFetcher
-from core import Notifier
+from core.fetcher import TushareFetcher
+from core.notifier import Notifier
 from core.storage import (
     MetaStore,
     daily_kline_partition_exists,
