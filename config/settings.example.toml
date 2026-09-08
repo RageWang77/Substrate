@@ -1,0 +1,4 @@
+[tushare]
+token = "your_tushare_token_here"
+# 可选：自定义 API 地址（需与官方一样以 /dataapi 结尾，如 http://api.waditu.com/dataapi）
+url = ""
