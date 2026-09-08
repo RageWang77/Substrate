@@ -1,4 +1,20 @@
 [tushare]
 token = "your_tushare_token_here"
-# 可选：自定义 API 地址（需与官方一样以 /dataapi 结尾，如 http://api.waditu.com/dataapi）
-url = ""
+
+[notifier]
+wecom_webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY"
+enabled = false  # 填写真实 webhook_url 后改为 true
+
+[paths]
+data_dir = "data"
+db_path = "db/meta.duckdb"
+log_path = "logs/pipeline.log"
+
+[basic]
+refresh_days = 7
+
+[scheduler]
+daily_kline_hour = 18
+daily_kline_minute = 0
+basic_day_of_week = "mon"
+basic_hour = 8
