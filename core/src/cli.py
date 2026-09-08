@@ -1,5 +1,6 @@
 import click
 from loguru import logger
+from datetime import datetime
 from pathlib import Path
 
 from core.src.config import load_config
@@ -29,11 +30,38 @@ def cli():
     pass
 
 @cli.command()
-@click.option("--table", type=click.Choice(["daily_kline", "basic"]), default=None)
+@click.option(
+    "--table",
+    type=click.Choice(["daily_kline", "basic", "trade_cal"]),
+    default=None,
+)
 @click.option("--all", "sync_all", is_flag=True, default=False)
-def sync(table: str | None, sync_all: bool) -> None:
-    """增量同步数据"""
+@click.option("--start-date", type=click.DateTime(formats=["%Y-%m-%d"]), default=None)
+@click.option("--end-date", type=click.DateTime(formats=["%Y-%m-%d"]), default=None)
+def sync(
+    table: str | None,
+    sync_all: bool,
+    start_date: datetime | None,
+    end_date: datetime | None,
+) -> None:
+    """同步数据。"""
+    if end_date is not None and start_date is None:
+        raise click.UsageError("--end-date requires --start-date")
+    if (start_date is not None or end_date is not None) and table != "daily_kline":
+        raise click.UsageError("date range options are only supported for daily_kline")
+
+    parsed_start_date = start_date.date() if start_date is not None else None
+    parsed_end_date = end_date.date() if end_date is not None else None
+    if (
+        parsed_start_date is not None
+        and parsed_end_date is not None
+        and parsed_end_date < parsed_start_date
+    ):
+        raise click.UsageError("--end-date must be on or after --start-date")
+
     with _make_pipeline() as pipeline:
+        if sync_all or table == "trade_cal":
+            pipeline.sync_trade_cal()
         if sync_all or table == "basic":
             pipeline.sync_basic()
         if sync_all or table == "daily_kline":
@@ -45,7 +73,7 @@ def status() -> None:
     """显示各表最后更新时间"""
     cfg = load_config(Path("config/settings.toml"))
     with MetaStore(cfg.db_path) as store:
-        for table in ["daily_kline", "basic"]:
+        for table in ["trade_cal", "daily_kline", "basic"]:
             last = store.get_last_date(table)
             click.echo(f"{table}: {last or '从未同步'}")
 

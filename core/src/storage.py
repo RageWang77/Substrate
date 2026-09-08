@@ -5,7 +5,6 @@ import pyarrow.parquet as pq
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-
 class MetaStore:
     def __init__(self, db_path: Path):
         db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -18,6 +17,15 @@ class MetaStore:
                 table_name  VARCHAR PRIMARY KEY,
                 last_date   DATE,
                 updated_at  TIMESTAMP
+            )
+        """)
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS trade_cal (
+                exchange      VARCHAR,
+                cal_date      DATE,
+                is_open       BOOLEAN,
+                pretrade_date DATE,
+                PRIMARY KEY (exchange, cal_date)
             )
         """)
 
@@ -44,6 +52,44 @@ class MetaStore:
         self.close()
         return False
 
+    def load_trade_cal_from_parquet(self, data_dir: Path) -> None:
+        trade_cal_dir = data_dir / "trade_cal"
+        if not trade_cal_dir.exists():
+            return
+        self._conn.execute("BEGIN")
+        try:
+            self._conn.execute("DELETE FROM trade_cal")
+            for exchange_dir in sorted(trade_cal_dir.iterdir()):
+                if not exchange_dir.is_dir():
+                    continue
+                parquet_path = exchange_dir / "data.parquet"
+                if not parquet_path.exists():
+                    continue
+                self._conn.execute(
+                    "INSERT INTO trade_cal SELECT * FROM read_parquet(?)",
+                    [str(parquet_path)]
+                )
+            self._conn.execute("COMMIT")
+        except Exception:
+            self._conn.execute("ROLLBACK")
+            raise
+
+    def get_trading_days(
+        self, exchange: str, start: date, end: date
+    ) -> list[date]:
+        rows = self._conn.execute(
+            """
+            SELECT cal_date FROM trade_cal
+            WHERE exchange = ?
+              AND cal_date >= ?
+              AND cal_date <= ?
+              AND is_open = TRUE
+            ORDER BY cal_date
+            """,
+            [exchange, start, end]
+        ).fetchall()
+        return [row[0] for row in rows]
+
     def close(self):
         self._conn.close()
 
@@ -53,12 +99,15 @@ def write_daily_kline(data_dir: Path, trade_date: date, df: pd.DataFrame) -> Non
     table = pa.Table.from_pandas(df, preserve_index=False)
     pq.write_table(table, partition_dir / "data.parquet")
 
+def daily_kline_partition_exists(data_dir: Path, trade_date: date) -> bool:
+    path = data_dir / "daily_kline" / f"date={trade_date.strftime('%Y%m%d')}" / "data.parquet"
+    return path.exists()
+
 def read_daily_kline(data_dir: Path, trade_date: date) -> pd.DataFrame:
     path = data_dir / "daily_kline" / f"date={trade_date.strftime('%Y%m%d')}" / "data.parquet"
     if not path.exists():
         return pd.DataFrame()
     return pq.read_table(path).to_pandas()
-
 
 def write_basic(data_dir: Path, df: pd.DataFrame) -> None:
     basic_dir = data_dir / "basic"
@@ -66,9 +115,21 @@ def write_basic(data_dir: Path, df: pd.DataFrame) -> None:
     table = pa.Table.from_pandas(df, preserve_index=False)
     pq.write_table(table, basic_dir / "data.parquet")
 
-
 def read_basic(data_dir: Path) -> pd.DataFrame:
     path = data_dir / "basic" / "data.parquet"
     if not path.exists():
         return pd.DataFrame()
     return pq.read_table(path).to_pandas()
+
+def write_trade_cal(data_dir: Path, exchange: str, df: pd.DataFrame) -> None:
+    partition_dir = data_dir / "trade_cal" / f"exchange={exchange}"
+    partition_dir.mkdir(parents=True, exist_ok=True)
+    table = pa.Table.from_pandas(df, preserve_index=False)
+    pq.write_table(table, partition_dir / "data.parquet")
+
+
+def read_trade_cal(data_dir: Path, exchange: str) -> pd.DataFrame:
+    path = data_dir / "trade_cal" / f"exchange={exchange}" / "data.parquet"
+    if not path.exists():
+        return pd.DataFrame()
+    return pq.read_table(path, schema=pq.read_schema(path)).to_pandas()
