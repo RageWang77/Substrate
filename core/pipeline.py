@@ -3,10 +3,10 @@ import time
 
 from loguru import logger
 
-from core.src.config import Config
-from core.src.fetcher import TushareFetcher
-from core.src.notifier import Notifier
-from core.src.storage import (
+from core.config import Config
+from core import TushareFetcher
+from core import Notifier
+from core.storage import (
     MetaStore,
     daily_kline_partition_exists,
     write_basic,

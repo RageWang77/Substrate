@@ -3,11 +3,11 @@ from loguru import logger
 from datetime import datetime
 from pathlib import Path
 
-from core.src.config import load_config
-from core.src.fetcher import TushareFetcher
-from core.src.notifier import Notifier
-from core.src.pipeline import Pipeline
-from core.src.storage import MetaStore
+from core.config import load_config
+from core.fetcher import TushareFetcher
+from core.notifier import Notifier
+from core.pipeline import Pipeline
+from core.storage import MetaStore
 
 _logger_initialized = False
 
@@ -82,5 +82,5 @@ def status() -> None:
 @click.argument("action", type=click.Choice(["start"]))
 def scheduler_cmd(action: str) -> None:
     """启动定时调度"""
-    from core.src.scheduler import start_scheduler
+    from core.scheduler import start_scheduler
     start_scheduler()
